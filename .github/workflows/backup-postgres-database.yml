@@ -1,0 +1,91 @@
+name: RW — Backup postgres database (Full DB Backup)
+
+on:
+  workflow_call:
+    inputs:
+      github_env:
+        type: string
+
+      database_host:
+        type: string
+        required: true
+
+      database_name1:
+        type: string
+        required: true
+
+      database_name2:
+        type: string
+        required: true
+
+      database_name3:
+        type: string
+        required: true    
+
+      database_user:
+        type: string
+        required: true
+
+      options:
+        type: string
+        required: false
+
+      storage_account_name:
+        type: string
+        required: true
+
+      storage_container_name:
+        type: string
+        required: true
+      
+      backup_file_name:
+        type: string
+        required: true
+
+    secrets:
+      DATABASE_PASSWORD:
+        required: true
+      
+      AZURE_CREDENTIALS:
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  backup:
+    name: 'Backup full DB Backup'
+    runs-on: ubuntu-latest
+
+    environment:
+      name: ${{ inputs.github_env  }}
+
+    steps:
+
+      - name: Create
+        run: |
+          PGPASSWORD='${{ secrets.DATABASE_PASSWORD }}' pg_dump \
+          -h ${{ inputs.database_host }} \
+          -U ${{ inputs.database_user }} \
+          -Fc -v --no-owner --no-privileges \
+          ${{ inputs.options }} \
+          -f ${{ inputs.backup_file_name }} \
+          ${{ inputs.database_name1 }}
+
+      - name: Azure login
+        uses: Azure/login@v1
+        with:
+          creds: '${{ secrets.AZURE_CREDENTIALS }}'
+
+      - name: Upload
+        uses: azure/CLI@v1
+        with:
+          azcliversion: 2.30.0
+          inlineScript: |
+            az storage blob upload \
+            --account-name ${{ inputs.storage_account_name }} \
+            --container-name ${{ inputs.storage_container_name }} \
+            --file ${{ inputs.backup_file_name }}
+
+        
